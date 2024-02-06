@@ -177,3 +177,17 @@ nameReq name req = Requirement $ \(Position pos) child only numerals ->
   let Requirement r = groupReq arabic req
       pos' = if only then pos else pos ++ [numerals child]
   in r (Position (pos' ++ [name])) 1 True numerals
+
+-- Recursion. Interesting uses must await temporal aspects.  The
+-- interesting thing about a recursive requirement is that the
+-- recursive occurrence covers the same paths as the outer one, thus
+-- the number of paths is still finite.
+
+mu :: (Requirement -> Requirement) -> Requirement
+mu f = Requirement $ \pos child only numerals ->
+         -- Recursive occurrences of the requirement are effectively at the same
+	 -- position, and so will generate the same coverage labels.
+	 let rec = Requirement $ \_ _ _ _ ->
+	             let sr = frec pos child only numerals in sr{covered = [], width = 0}
+             Requirement frec = f rec
+         in frec pos child only numerals
