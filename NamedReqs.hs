@@ -32,10 +32,8 @@ instance Naming (Requirement a) where
   group numeral = liftToRequirement $ group numeral
   anonymous = liftToRequirement anonymous
 
-instance Covering (Requirement a) where
-  type PositionType (Requirement a) = Position
+instance Erroring (Requirement a) where
   withError msg = liftToRequirement $ fmap (withError msg)
-  -- No definition of withCover... this is handled implicitly
 
 liftToRequirement f (Requirement g) = Requirement (f . g)
 

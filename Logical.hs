@@ -58,6 +58,8 @@ instance (Logical a, Eq pos) => Logical (Covered pos a) where
 class Logical a => Covering a where
   type PositionType a
   withCover :: PositionType a -> a -> a
+
+class Logical a => Erroring a where
   withError :: String -> a -> a
 
 instance (Logical a, Eq pos) => Covering (Covered pos a) where
@@ -68,6 +70,7 @@ instance (Logical a, Eq pos) => Covering (Covered pos a) where
     failed   = if holds a then failed a else pos:failed a
     }
 
+instance (Logical a, Eq pos) => Erroring (Covered pos a) where
   withError msg a
     | holds a   = a
     | otherwise = a { errors = errors a ++ [msg] }
