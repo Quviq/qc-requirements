@@ -1,0 +1,75 @@
+Setting:
+
+Sequence of transactions (and captured state), attacks may substitute
+or add bad transactions, which should be rejected by scripts; want to
+write requirements in such a way that we can 
+
+ - use them to check that the *accepted* transactions satisfy
+   requirements
+
+ - check that the *attack* transactions can violate every requirement
+   (individually--thus testing that the scripts check each one).
+
+ - write the requirements in a form which connects easily to the
+   informal documents.
+
+
+
+Look at inRange
+Requirement operations: #&& etc
+Demo: quickCheck $ requirementHolds (inRange 3)
+Covers both requirements.
+Show 101 and (-1) too: shows which requirement failed.
+Requirement names important: show nameReq "inRange" applied, and also roman.
+Make change in Demo file.
+
+Sequence: allReq
+quickCheck $ \ns -> requirementHolds (allReq inRange ns)
+Fails, of course.
+quickCheck $ requirementHolds (allReq inRange [1,2,3])
+Succeeds, note each requirement covered several times.
+Add 101, -1. Note FIRST failure gets reported, along with failed requirement.
+
+quickCheck $ \ns -> requirementHolds (allReq inRange ns)
+Requirements are violated by random data.
+
+Does filter (>=0) enforce the requirements?
+quickCheck $ \ns -> requirementHolds (allReq inRange (filter (>=0) ns))
+
+Apparently passes! But not so fast...
+
+We already showed test data can violate requirements; now change Holds to Attacks.
+Reported: Only one of the requirements was attacked; the other was not.
+
+How to fix that? Generate larger numbers in test data.
+
+quickCheck . mapSize (2*) $ \ns -> ...
+
+Now we cover both requirements.
+
+Repeat the test including filter (>=0), and it fails. :-) Demonstrates we have found a bug!
+
+{-
+OK, show
+
+quickCheck $ \ns -> requirementHolds (adjacentReq (#>) (ns :: [Int]))
+
+Fails. Note there are two requirements (use Attacks to see them both).
+-}
+
+What more?
+
+allReq operates on a sequence of events, available all at once.
+Plan: incremental requirement checking, temporal logic
+formulae. (allReq corresponds to always).
+
+The actual requirements talk about a "requirements state", which needs
+to be handled in a nice way.
+
+The actual requirements talk about events at a finer grain than
+transactions--e.g. "processing one order" in stablecoin protocol, even
+though the processing transaction processes many. ==> the state is
+invisible inside the on-chain code.
+
+Integration with Djed code to invoke requirements at the right place,
+support testing attacks.
