@@ -29,3 +29,14 @@ allElements r = recursively $ \rec ->
 allElements' r = 
   $(matching [| \[] -> named "emptyList" $ boolean True |]) #&&
   $(matching [| \(x:xs) -> (r `onValue` x) #&& (allElements' r `onValue` xs) |])
+
+inRange' =
+  $(matching [| \n ->
+      named "inRange" . group roman $
+          (named "lowerBound" $ n `ge` 0)
+      #&& (named "upperBound" . withError (show n ++" > 100") $ 100 `ge` n)
+  |])
+
+m `ge` n =
+  named "boundary"     (boolean (m==n)) #||
+  named "non-boundary" (boolean (m >n))
