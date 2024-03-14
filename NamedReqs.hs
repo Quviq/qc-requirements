@@ -26,7 +26,8 @@ instance Logical (Requirement a) where
   b #=> Requirement r = Requirement $ \a -> do
     ok <- r a
     pure (if b then ok else boolean True)
-
+  negation = named "negation" . liftToRequirement (fmap negation)
+  
 instance Naming (Requirement a) where
   type NamedType (Requirement a) = Covered Position Bool
   atom f = Requirement $ \_ -> atom f

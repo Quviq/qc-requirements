@@ -17,6 +17,10 @@ prop_multiply gen =
   forAllShrink (liftM2 (,) gen gen) shrink $ \(m,n) ->
   requirementHolds $ multiplyReq `onValue` (m,n,multiply m n)
 
+prop_multiplyNegationAttack gen =
+  forAllShrink (liftM2 (,) gen gen) shrink $ \(m,n) ->
+  requirementAttacks $ notMultiplyReq `onValue` (m,n,multiply m n)
+
 prop_multiplyAttacks gen =
   forAllShrink (liftM2 (,) gen gen) shrink $ \(m,n) ->
   forAll (oneof [arbitrary, pure (Right (m*n))]) $ \res ->
@@ -35,6 +39,23 @@ multiplyReq =
     named "m" (notInRange `onValue` m) #|| named "n" (notInRange `onValue` n)
   |])
 
+notMultiplyReq :: Requirement (Int,Int,Either String Int)
+notMultiplyReq =
+  ( $(matching [| \(m,n,Right mn) ->
+       notInRange `onValue` m #||
+       notInRange `onValue` n #||
+       boolean (mn /= m*n)
+     |]) #&&
+    $(matching [| \x -> boolean $ case x of (m,n,Right mn) -> True; _ -> False |])
+   )
+  #||
+  ( $(matching  [| \(m,n,Left _) ->
+    (inRange `onValue` m) #&& (inRange `onValue` n)
+    |]) #&&
+    $(matching [| \x -> boolean $ case x of (m,n,Left _) -> True; _ -> False |])
+
+    )
+    
 inRange :: Requirement Int
 inRange =
   $(matching [| \n ->
@@ -51,4 +72,4 @@ notInRange =
  $(matching[| \n ->
      boolean (n<0) #|| boolean (n>100)
      |])
-     
+

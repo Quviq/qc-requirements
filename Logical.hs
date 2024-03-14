@@ -16,6 +16,7 @@ class Logical a where
   holds :: a -> Bool
   (#=>) :: Bool -> a -> a
   b #=> a = if b then a else boolean True
+  negation :: a -> a
 
 instance Logical Bool where
   boolean = id
@@ -24,6 +25,7 @@ instance Logical Bool where
   (#>&&) = (&&)
   (#>||) = (||)
   holds = id
+  negation = not
   
 data Covered pos a = Covered {
   covered  :: [pos],   -- if a covered position changes value, the decision will change
@@ -77,6 +79,8 @@ instance (Logical a, Eq pos) => Logical (Covered pos a) where
     }
     
   holds c = holds (decision c)
+
+  negation c = c {decision = negation (decision c)}
 
 class Logical a => Covering a where
   type PositionType a
