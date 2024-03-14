@@ -6,13 +6,13 @@
 
 module Logical where
 
-infixr 3 #&&
-infixr 2 #||
+infixr 3 #&&, #>&&
+infixr 2 #||, #>||
 infixr 1 #=>
 
 class Logical a where
   boolean :: Bool -> a
-  (#&&), (#||) :: a -> a -> a
+  (#&&), (#||), (#>&&), (#>||) :: a -> a -> a
   holds :: a -> Bool
   (#=>) :: Bool -> a -> a
   b #=> a = if b then a else boolean True
@@ -21,6 +21,8 @@ instance Logical Bool where
   boolean = id
   (#&&) = (&&)
   (#||) = (||)
+  (#>&&) = (&&)
+  (#>||) = (||)
   holds = id
   
 data Covered pos a = Covered {
@@ -53,6 +55,27 @@ instance (Logical a, Eq pos) => Logical (Covered pos a) where
     errors   = errors c ++ errors c'
     }
 
+  -- Lazy versions
+  c #>&& c' = Covered {
+    covered  = (if holds c' then covered c  else []) ++
+    	       (if holds c  then covered c' else []),
+    failed   = failed c ++
+    	       if holds c then failed c' else [],
+    decision = decision c #>&& decision c',
+    errors   = errors c ++
+    	       if holds c then errors c' else []
+    }
+
+  c #>|| c' = Covered {
+    covered  = (if holds c' then [] else covered c) ++
+    	       (if holds c  then [] else covered c'),
+    failed   = failed c ++
+    	       if holds c then [] else failed c',
+    decision = decision c #>|| decision c',
+    errors   = errors c ++
+    	       if holds c then [] else errors c'
+    }
+    
   holds c = holds (decision c)
 
 class Logical a => Covering a where

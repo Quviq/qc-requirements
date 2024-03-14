@@ -20,6 +20,8 @@ instance Logical (Requirement a) where
                            pos                -> withCover pos (boolean b)
   Requirement f #&& Requirement g = Requirement $ \a -> (#&&) <$> f a <*> g a
   Requirement f #|| Requirement g = Requirement $ \a -> (#||) <$> f a <*> g a
+  Requirement f #>&& Requirement g = Requirement $ \a -> (#>&&) <$> f a <*> g a
+  Requirement f #>|| Requirement g = Requirement $ \a -> (#>||) <$> f a <*> g a
   holds (Requirement f) = holds . decision . snd . assignNames . f $ (error "holds: Requirement is not constant")
   b #=> Requirement r = Requirement $ \a -> do
     ok <- r a
