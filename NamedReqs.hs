@@ -79,3 +79,23 @@ requirementAttacks (Requirement f) =
   True
   where (positions, b) = assignNames . f $ error "requirementHolds: Requirement is not a constant"
 
+requirementEnforced (Requirement r) f x =
+  foldr (.) id [cover 1 (not (decision before)
+                      && pos `elem` covered before
+                      && pos `elem` covered after)
+                      (show pos)
+               | pos <- positions] $
+  property $ decision after
+  where (positions, before) = assignNames (r x)
+        (_,         after ) = assignNames (r (f x))
+
+requirementChecked (Requirement r) p x =
+  foldr (.) id [cover 0.5
+                      (pos `elem` covered b)
+                      (show (annot pos))
+               | pos <- positions ] $
+  p x === decision b
+  where (positions,  b)  = assignNames (r x)
+        positions' = map annot positions
+        annot (Position (Just pos)) | decision b = Position (Just pos)
+                                    | otherwise  = Position (Just ("-":pos))

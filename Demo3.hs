@@ -8,18 +8,15 @@ import Numerals
 import NamedReqs
 import Test.QuickCheck
 import Control.Monad
+import Data.Either
 
 multiply m n
   | 0 <= m && 0 <= n && m <= 100 && n <= 100 = Right $ m*n
-  | otherwise = Left $ "Bad multiply" ++ show m ++ " " ++ show n
+  | otherwise = Left $ "Bad multiply " ++ show m ++ " " ++ show n
 
 prop_multiply gen =
   forAllShrink (liftM2 (,) gen gen) shrink $ \(m,n) ->
   requirementHolds $ multiplyReq `onValue` (m,n,multiply m n)
-
-prop_multiplyNegationAttack gen =
-  forAllShrink (liftM2 (,) gen gen) shrink $ \(m,n) ->
-  requirementAttacks $ notMultiplyReq `onValue` (m,n,multiply m n)
 
 prop_multiplyAttacks gen =
   forAllShrink (liftM2 (,) gen gen) shrink $ \(m,n) ->
@@ -36,26 +33,9 @@ multiplyReq =
   |]) #&&
   $(matching [| \(m,n,Left _) ->
     named "failure-case" $
-    named "m" (notInRange `onValue` m) #|| named "n" (notInRange `onValue` n)
+    named "m" (negation inRange `onValue` m) #|| named "n" (negation inRange `onValue` n)
   |])
 
-notMultiplyReq :: Requirement (Int,Int,Either String Int)
-notMultiplyReq =
-  ( $(matching [| \(m,n,Right mn) ->
-       notInRange `onValue` m #||
-       notInRange `onValue` n #||
-       boolean (mn /= m*n)
-     |]) #&&
-    $(matching [| \x -> boolean $ case x of (m,n,Right mn) -> True; _ -> False |])
-   )
-  #||
-  ( $(matching  [| \(m,n,Left _) ->
-    (inRange `onValue` m) #&& (inRange `onValue` n)
-    |]) #&&
-    $(matching [| \x -> boolean $ case x of (m,n,Left _) -> True; _ -> False |])
-
-    )
-    
 inRange :: Requirement Int
 inRange =
   $(matching [| \n ->
@@ -68,8 +48,19 @@ m `ge` n =
   named "boundary"     (boolean (m==n)) #||
   named "non-boundary" (boolean (m >n))
 
-notInRange =
- $(matching[| \n ->
-     boolean (n<0) #|| boolean (n>100)
-     |])
+mult (m,n,_) = (m,n,multiply m n)
 
+testCaseGen :: Gen (Int,Int,Either String Int)
+testCaseGen = do
+  let valGen = --choose (-10,110) -- with this generator, coverage checking fails.
+               oneof [elements [0,100], choose (-10,110)]
+  m <- valGen
+  n <- valGen
+  res <- oneof [arbitrary, pure $ Right (m*n)]
+  pure (m,n,res)
+
+multPred (m,n,res) = case multiply m n of
+  Left _ -> isLeft res
+  right  -> res == right
+
+--quickCheck . checkCoverage $ forAllShrink testCaseGen shrink $ requirementChecked multiplyReq multPred
