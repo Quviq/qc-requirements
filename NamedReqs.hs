@@ -3,17 +3,30 @@
 	     LambdaCase
 #-}
 
-module NamedReqs where
+module NamedReqs(
+  module Logical,
+  module NameTree,
+  module Numerals,
+  Requirement,
+  matching,
+  onValue,
+  recursively,
+  requirementHolds,
+  requirementAttacks,
+  requirementChecked,
+  requirementCovered
+  ) where
 
 import NameTree
 import Logical
+import Numerals
 import Language.Haskell.TH
 import Test.QuickCheck
 
 newtype Requirement a = Requirement { unRequirement :: a -> Named (Covered Position Bool) }
 
 instance Show (Requirement a) where
-  show (Requirement f) = show . assignNames . f $ error "show: Requirement is not a constant"
+  show (Requirement f) = show . assignNames . f $ error "show: Requirement coverage depends on the input"
 
 instance Logical (Requirement a) where
   boolean b = atom $ \case (Position Nothing) -> boolean b
@@ -22,7 +35,8 @@ instance Logical (Requirement a) where
   Requirement f #|| Requirement g = Requirement $ \a -> (#||) <$> f a <*> g a
   Requirement f #>&& Requirement g = Requirement $ \a -> (#>&&) <$> f a <*> g a
   Requirement f #>|| Requirement g = Requirement $ \a -> (#>||) <$> f a <*> g a
-  holds (Requirement f) = holds . decision . snd . assignNames . f $ (error "holds: Requirement is not constant")
+  holds (Requirement f) = holds . decision . snd . assignNames . f $
+                            (error "holds: Requirement is not constant")
   b #=> Requirement r = Requirement $ \a -> do
     ok <- r a
     pure (if b then ok else boolean True)
@@ -65,37 +79,68 @@ recursively f = Requirement rec
 
 -- Testing requirements
 
-requirementHolds (Requirement f) =
-  foldr (.) id [cover 1 (pos `elem` covered b) (show pos) | pos <- positions] $
+-- The next two functions are intended for use when an implementation
+-- maps an input to an output of the same type, which is guaranteed to
+-- meet the requirements. For example, a filter function which filters
+-- out bad transactions from a list. Thus *positive* testing is
+-- applied to the output of the implementation, while *negative*
+-- testing is applied to its input (make sure it is given inputs that
+-- violate the requirements in every possible way). In each case the
+-- requirement must not depend on input data.
+
+-- Positive testing of requirements. Each position in the requirement
+-- must be covered in at least cov% of tests.
+
+requirementHolds cov (Requirement f) =
+  foldr (.) id [cover cov (pos `elem` covered b) (show pos) | pos <- positions] $
   counterexample ("Failed requirements: "++show (failed b)) $
   foldr (.) id [counterexample err | err <- errors b] $
   property $ decision b
-  where (positions, b) = assignNames . f $ error "requirementHolds: Requirement is not a constant"
+  where (positions, b) = assignNames . f $ error "requirementHolds: Requirement positions depend on input data"
 
-requirementAttacks (Requirement f) =
-  foldr (.) id [cover 1 (not (decision b) && pos `elem` covered b) (show pos)
+-- Negative testing of requirements. Each position in the requirement
+-- must be covered in at least cov% of tests.
+requirementAttacks cov (Requirement f) =
+  foldr (.) id [cover cov (not (decision b) && pos `elem` covered b) (show pos)
                | pos <- positions] $
   classify (not (decision b)) "Successful attacks" $
   True
-  where (positions, b) = assignNames . f $ error "requirementHolds: Requirement is not a constant"
+  where (positions, b) = assignNames . f $ error "requirementAttacks: Requirement positions depend on input data"
 
-requirementEnforced (Requirement r) f x =
-  foldr (.) id [cover 1 (not (decision before)
-                      && pos `elem` covered before
-                      && pos `elem` covered after)
-                      (show pos)
-               | pos <- positions] $
-  property $ decision after
-  where (positions, before) = assignNames (r x)
-        (_,         after ) = assignNames (r (f x))
 
-requirementChecked (Requirement r) p x =
-  foldr (.) id [cover 0.5
-                      (pos `elem` covered b)
-                      (show (annot pos))
+-- Check that a requirement corresponds to a predicate, and collect
+-- positive and negative coverage for each position. Error if each
+-- position is not covered by at least covPos% or covNeg% of tests.
+
+requirementChecked covPos covNeg (Requirement r) p x =
+  foldr (.) id [cover covPos
+                      (decision b && pos `elem` covered b)
+                      (show pos) .
+		cover covNeg
+		      (not (decision b) && pos `elem` covered b)
+		      (show (annot pos))
                | pos <- positions ] $
   p x === decision b
   where (positions,  b)  = assignNames (r x)
-        positions' = map annot positions
-        annot (Position (Just pos)) | decision b = Position (Just pos)
-                                    | otherwise  = Position (Just ("-":pos))
+        annot (Position (Just pos)) = Position (Just ("-":pos))
+
+-- Check that generated test data achieves both positive and negative
+-- coverage of all positions in the requirement, in at least covPos%
+-- and covNeg% of test cases. That is, this tests the test data. It
+-- should be used with checkCoverage (although calling checkCoverage
+-- here would make supplying a custom generator impossible).
+
+requirementCovered covPos covNeg (Requirement r) =
+  -- Using a separate lambda here enables sharing of the positions computation.
+  \x ->
+  let (_,  b)  = assignNames (r x) in
+  foldr (.) id [cover covPos
+                      (decision b && pos `elem` covered b)
+                      (show pos) .
+		cover covNeg
+		      (not (decision b) && pos `elem` covered b)
+		      (show (annot pos))
+               | pos <- positions ] $
+  property True
+  where annot (Position (Just pos)) = Position (Just ("-":pos))
+  	(positions, _) = assignNames . r $ error "requirementCovered: Requirement positions depend on input data"
