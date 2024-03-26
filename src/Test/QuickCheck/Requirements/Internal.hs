@@ -3,10 +3,9 @@
 	     LambdaCase
 #-}
 
-module NamedReqs(
-  module Logical,
-  module NameTree,
-  module Numerals,
+{-# OPTIONS_GHC -fno-warn-incomplete-patterns #-}
+
+module Test.QuickCheck.Requirements.Internal(
   Requirement,
   matching,
   onValue,
@@ -17,9 +16,8 @@ module NamedReqs(
   requirementCovered
   ) where
 
-import NameTree
-import Logical
-import Numerals
+import Test.QuickCheck.Requirements.NameTree
+import Test.QuickCheck.Requirements.Logical
 import Language.Haskell.TH
 import Test.QuickCheck
 
@@ -52,26 +50,31 @@ instance Naming (Requirement a) where
 instance Erroring (Requirement a) where
   withError msg = liftToRequirement $ fmap (withError msg)
 
+liftToRequirement :: (Named (Covered Position Bool) -> Named (Covered Position Bool))
+                     -> Requirement a -> Requirement a
 liftToRequirement f (Requirement g) = Requirement (f . g)
 
+withValue :: (a -> Requirement a) -> Requirement a
 withValue f = Requirement $ \a -> unRequirement (f a) a
 
+onValue :: Requirement a -> a -> Requirement b
 onValue (Requirement r) a = Requirement $ \_ -> r a
 
 -- The requirement matching [| \pat -> req |] holds if the requirement
 -- parameter matches pat, and requirement req holds. If the parameter
 -- does not match pat then the requirement is trivially satisfied (but
 -- not covered).
-matching exp = do
-  e <- exp
+matching :: Q Exp -> Q Exp
+matching expr = do
+  e <- expr
   case e of
     LamE [a] body -> do
       [| withValue $ \ x ->
            case x of
-	     $(pure a) -> True
-	     _         -> False
-	   #=>
-	   let $(pure a) = x in $(pure body) |]
+             $(pure a) -> True
+             _         -> False
+           #=>
+           let $(pure a) = x in $(pure body) |]
 
 recursively :: (Requirement a -> Requirement a) -> Requirement a
 recursively f = Requirement rec
@@ -91,6 +94,7 @@ recursively f = Requirement rec
 -- Positive testing of requirements. Each position in the requirement
 -- must be covered in at least cov% of tests.
 
+requirementHolds :: Double -> Requirement a -> Property
 requirementHolds cov (Requirement f) =
   foldr (.) id [cover cov (pos `elem` covered b) (show pos) | pos <- positions] $
   counterexample ("Failed requirements: "++show (failed b)) $
@@ -100,6 +104,7 @@ requirementHolds cov (Requirement f) =
 
 -- Negative testing of requirements. Each position in the requirement
 -- must be covered in at least cov% of tests.
+requirementAttacks :: Double -> Requirement a -> Property
 requirementAttacks cov (Requirement f) =
   foldr (.) id [cover cov (not (decision b) && pos `elem` covered b) (show pos)
                | pos <- positions] $
@@ -112,13 +117,14 @@ requirementAttacks cov (Requirement f) =
 -- positive and negative coverage for each position. Error if each
 -- position is not covered by at least covPos% or covNeg% of tests.
 
+requirementChecked :: Double -> Double -> Requirement t -> (t -> Bool) -> t -> Property
 requirementChecked covPos covNeg (Requirement r) p x =
   foldr (.) id [cover covPos
                       (decision b && pos `elem` covered b)
                       (show pos) .
-		cover covNeg
-		      (not (decision b) && pos `elem` covered b)
-		      (show (annot pos))
+                cover covNeg
+                      (not (decision b) && pos `elem` covered b)
+                      (show (annot pos))
                | pos <- positions ] $
   p x === decision b
   where (positions,  b)  = assignNames (r x)
@@ -130,6 +136,7 @@ requirementChecked covPos covNeg (Requirement r) p x =
 -- should be used with checkCoverage (although calling checkCoverage
 -- here would make supplying a custom generator impossible).
 
+requirementCovered :: Double -> Double -> Requirement a -> a -> Property
 requirementCovered covPos covNeg (Requirement r) =
   -- Using a separate lambda here enables sharing of the positions computation.
   \x ->
@@ -137,10 +144,10 @@ requirementCovered covPos covNeg (Requirement r) =
   foldr (.) id [cover covPos
                       (decision b && pos `elem` covered b)
                       (show pos) .
-		cover covNeg
-		      (not (decision b) && pos `elem` covered b)
-		      (show (annot pos))
+                cover covNeg
+                      (not (decision b) && pos `elem` covered b)
+                      (show (annot pos))
                | pos <- positions ] $
   property True
   where annot (Position (Just pos)) = Position (Just ("-":pos))
-  	(positions, _) = assignNames . r $ error "requirementCovered: Requirement positions depend on input data"
+        (positions, _) = assignNames . r $ error "requirementCovered: Requirement positions depend on input data"

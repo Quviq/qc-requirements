@@ -4,7 +4,7 @@
   , TypeFamilies
 #-}
 
-module Logical where
+module Test.QuickCheck.Requirements.Logical where
 
 infixr 3 #&&, #>&&
 infixr 2 #||, #>||
@@ -38,12 +38,12 @@ data Covered pos a = Covered {
 instance (Logical a, Eq pos) => Logical (Covered pos a) where
   boolean b = Covered { covered  = [],
                         failed   = [],
-			decision = boolean b,
-			errors   = [] }
+                        decision = boolean b,
+                        errors   = [] }
 
   c #&& c' = Covered {
     covered  = (if holds c' then covered c  else []) ++
-    	       (if holds c  then covered c' else []),
+               (if holds c  then covered c' else []),
     failed   = failed c ++ failed c',
     decision = decision c #&& decision c',
     errors   = errors c ++ errors c'
@@ -51,7 +51,7 @@ instance (Logical a, Eq pos) => Logical (Covered pos a) where
 
   c #|| c' = Covered {
     covered  = (if holds c' then [] else covered c) ++
-    	       (if holds c  then [] else covered c'),
+               (if holds c  then [] else covered c'),
     failed   = failed c ++ failed c',
     decision = decision c #|| decision c',
     errors   = errors c ++ errors c'
@@ -60,22 +60,22 @@ instance (Logical a, Eq pos) => Logical (Covered pos a) where
   -- Lazy versions
   c #>&& c' = Covered {
     covered  = (if holds c' then covered c  else []) ++
-    	       (if holds c  then covered c' else []),
+               (if holds c  then covered c' else []),
     failed   = failed c ++
-    	       if holds c then failed c' else [],
+                   if holds c then failed c' else [],
     decision = decision c #>&& decision c',
     errors   = errors c ++
-    	       if holds c then errors c' else []
+                   if holds c then errors c' else []
     }
 
   c #>|| c' = Covered {
     covered  = (if holds c' then [] else covered c) ++
-    	       (if holds c  then [] else covered c'),
+               (if holds c  then [] else covered c'),
     failed   = failed c ++
-    	       if holds c then [] else failed c',
+                   if holds c then [] else failed c',
     decision = decision c #>|| decision c',
     errors   = errors c ++
-    	       if holds c then [] else errors c'
+               if holds c then [] else errors c'
     }
     
   holds c = holds (decision c)
